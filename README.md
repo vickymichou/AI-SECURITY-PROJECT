@@ -29,17 +29,7 @@ The goal is to combine:
 
 ## 🏗️ Architecture
 
-```
-User Input
-    ↓
-Prompt Scanner (llm-guard)
-    ↓
-Risk Scoring
-    ↓
-Event Logging (JSON + SQLite)
-    ↓
-Dashboard (Streamlit)
-```
+![Architecture](architecture1.drawio)
 
 ---
 
