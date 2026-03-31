@@ -2,32 +2,71 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
+import json
 
-st.set_page_config(page_title="AI Security Dashboard", layout="wide")
+st.set_page_config(page_title="AI Security Monitoring Dashboard", layout="wide")
 st.title("🛡️ AI Security Monitoring Dashboard")
 
+LOG_FILE = "security_audit.jsonl"
+
+
 def load_data():
-    if not os.path.exists("security_audit.log"):
+    if not os.path.exists(LOG_FILE):
         return pd.DataFrame()
+
     data = []
-    with open("security_audit.log", "r", encoding="utf-8") as f:
+
+    with open(LOG_FILE, "r", encoding="utf-8") as f:
         for line in f:
             try:
-                parts = line.split(" | ")
-                timestamp = parts[0].strip("[]")
-                status = parts[1]
-                risk = float(parts[2].split(": ")[1])
-                data.append({"Timestamp": timestamp, "Status": status, "Risk Score": risk})
-            except: continue
-    return pd.DataFrame(data)
+                record = json.loads(line.strip())
+                data.append(record)
+            except Exception:
+                continue
+
+    df = pd.DataFrame(data)
+
+    if not df.empty and "timestamp" in df.columns:
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+    return df
+
 
 df = load_data()
+
+if not df.empty:
+    df["risk_score"] = df["risk_score"].clip(lower=0)
+
 if not df.empty:
     c1, c2 = st.columns(2)
+
     with c1:
-        st.plotly_chart(px.pie(df, names='Status', color='Status', color_discrete_map={'ALLOWED':'green', 'BLOCKED':'red'}))
+        st.subheader("Request Status Distribution")
+        fig_status = px.pie(
+            df,
+            names="status",
+            color="status",
+            color_discrete_map={
+                "ALLOWED": "green",
+                "BLOCKED": "red",
+                "ALERT": "orange",
+                "API_ERROR": "purple",
+                "REQUEST_FAILED": "gray"
+            }
+        )
+        st.plotly_chart(fig_status, use_container_width=True)
+
     with c2:
-        st.plotly_chart(px.line(df, x='Timestamp', y='Risk Score'))
-    st.table(df.tail(5))
+        st.subheader("Risk Score Over Time")
+        fig_risk = px.line(df, x="timestamp", y="risk_score", markers=True)
+        st.plotly_chart(fig_risk, use_container_width=True)
+
+    st.subheader("Recent Security Events")
+    st.dataframe(df.sort_values("timestamp", ascending=False).head(10), use_container_width=True)
+
+    st.subheader("Summary")
+    st.write(f"Total Events: {len(df)}")
+    st.write(f"Average Risk Score: {df['risk_score'].mean():.2f}")
+
 else:
     st.info("Περιμένω δεδομένα από το chatbot...")

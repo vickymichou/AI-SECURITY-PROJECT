@@ -2,6 +2,7 @@ import requests
 import datetime
 import os
 import time
+import json
 from dotenv import load_dotenv
 from llm_guard.input_scanners import PromptInjection
 
@@ -11,13 +12,12 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL = "gemini-2.5-flash"
 URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
 
-LOG_FILE = "security_audit.log"
+LOG_FILE = "security_audit.jsonl"
 
 
-def log_event(status, risk, prompt):
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def log_event(event: dict):
     with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"[{timestamp}] | {status} | Risk: {risk:.2f} | Prompt: {prompt}\n")
+        f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
 try:
@@ -32,9 +32,9 @@ if not API_KEY:
     raise SystemExit(1)
 
 print("============================================")
-print("🛡️   SECURE AI CHATBOT - FINAL VERSION   🛡️")
+print("🛡️   SECURE AI CHATBOT - DATA PIPELINE MODE   🛡️")
 print("============================================\n")
-
+print("STARTED OK")
 while True:
     user_prompt = input("User > ")
 
@@ -43,8 +43,10 @@ while True:
     if not user_prompt.strip():
         continue
 
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     risk = 0.0
     status = "ALLOWED"
+    ai_response = None
 
     if scanner:
         print("[🔍] Scanning...")
@@ -58,13 +60,24 @@ while True:
             else:
                 status = "ALLOWED"
 
-            log_event(status, risk, user_prompt)
-
             if status == "BLOCKED":
                 print(f"🚨 BLOCKED! Risk: {risk:.2f}")
+
+                event = {
+                    "timestamp": timestamp,
+                    "status": status,
+                    "risk_score": round(risk, 2),
+                    "prompt": user_prompt,
+                    "response": None,
+                    "model": MODEL,
+                    "source": "cli_chatbot"
+                }
+                log_event(event)
                 continue
+
             elif status == "ALERT":
                 print(f"⚠️ ALERT! Risk: {risk:.2f}")
+
         except Exception as e:
             print(f"❌ Scanner runtime error: {e}")
             continue
@@ -91,13 +104,26 @@ while True:
 
         if response.status_code == 200:
             data = response.json()
-            answer = data["candidates"][0]["content"]["parts"][0]["text"]
-            print(f"\n🤖 AI > {answer}\n")
+            ai_response = data["candidates"][0]["content"]["parts"][0]["text"]
+            print(f"\n🤖 AI > {ai_response}\n")
         else:
+            status = "API_ERROR"
             print(f"❌ API Error {response.status_code}")
             print(response.text)
 
     except Exception as e:
+        status = "REQUEST_FAILED"
         print(f"❌ Error: {e}")
+
+    event = {
+        "timestamp": timestamp,
+        "status": status,
+        "risk_score": round(risk, 2),
+        "prompt": user_prompt,
+        "response": ai_response,
+        "model": MODEL,
+        "source": "cli_chatbot"
+    }
+    log_event(event)
 
     time.sleep(1)
