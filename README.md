@@ -158,7 +158,3 @@ This system simulates a:
 * Advanced anomaly detection
 
 ---
-
-## 👨‍💻 Author
-
-Built as a portfolio project for a **Junior Cloud/Data Engineer role**.
