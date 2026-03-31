@@ -157,4 +157,3 @@ This system simulates a:
 * Authentication system
 * Advanced anomaly detection
 
----
