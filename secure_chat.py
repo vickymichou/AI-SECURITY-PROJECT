@@ -1,41 +1,38 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import sqlite3
 import os
-import json
 
 st.set_page_config(page_title="AI Security Monitoring Dashboard", layout="wide")
 st.title("🛡️ AI Security Monitoring Dashboard")
 
-LOG_FILE = "security_audit.jsonl"
+DB_FILE = "security_events.db"
 
 
 def load_data():
-    if not os.path.exists(LOG_FILE):
+    if not os.path.exists(DB_FILE):
         return pd.DataFrame()
 
-    data = []
+    conn = sqlite3.connect(DB_FILE)
 
-    with open(LOG_FILE, "r", encoding="utf-8") as f:
-        for line in f:
-            try:
-                record = json.loads(line.strip())
-                data.append(record)
-            except Exception:
-                continue
+    query = """
+        SELECT id, timestamp, status, risk_score, prompt, response, model, source
+        FROM security_events
+        ORDER BY timestamp ASC
+    """
 
-    df = pd.DataFrame(data)
+    df = pd.read_sql_query(query, conn)
+    conn.close()
 
-    if not df.empty and "timestamp" in df.columns:
+    if not df.empty:
         df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df["risk_score"] = df["risk_score"].clip(lower=0)
 
     return df
 
 
 df = load_data()
-
-if not df.empty:
-    df["risk_score"] = df["risk_score"].clip(lower=0)
 
 if not df.empty:
     c1, c2 = st.columns(2)
@@ -62,11 +59,23 @@ if not df.empty:
         st.plotly_chart(fig_risk, use_container_width=True)
 
     st.subheader("Recent Security Events")
-    st.dataframe(df.sort_values("timestamp", ascending=False).head(10), use_container_width=True)
+    st.dataframe(
+        df.sort_values("timestamp", ascending=False).head(10),
+        use_container_width=True
+    )
 
     st.subheader("Summary")
     st.write(f"Total Events: {len(df)}")
     st.write(f"Average Risk Score: {df['risk_score'].mean():.2f}")
+    st.write(f"Unique Status Types: {df['status'].nunique()}")
+
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="Download CSV",
+        data=csv,
+        file_name="security_events.csv",
+        mime="text/csv"
+    )
 
 else:
-    st.info("Περιμένω δεδομένα από το chatbot...")
+    st.info("Περιμένω δεδομένα από τη βάση SQLite...")
