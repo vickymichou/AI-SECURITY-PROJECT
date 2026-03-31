@@ -29,7 +29,7 @@ The goal is to combine:
 
 ## 🏗️ Architecture
 
-![Architecture](architecture1.drawio)
+![Architecture](architecture1.drawio.png)
 
 ---
 
